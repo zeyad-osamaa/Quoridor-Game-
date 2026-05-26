@@ -2,16 +2,21 @@ import pygame
 import sys
 from game.rules import move_player , check_winner , place_wall
 from game.board import board , player_walls, walls
+from game.ai import choose_ai_action
 import os
 
+#This game was developed by Ain Shams University students as a project for the course "Artificial Intelligence 1" in the Spring semester of 2026
+#The game is based on the board game "Quoridor" and 
+# includes both player vs player and player vs AI modes, 
+# with three difficulty levels for the AI. We hope you enjoy playing it as much as we enjoyed creating it!
 
 
 pygame.init()
 pygame.mixer.init()
 
-sound_path = os.path.join(os.path.dirname(__file__), "Assets", "win.mp3")
+#sound_path = os.path.join( "Assets", "win.mp3")
 
-pygame.mixer.music.load(sound_path)
+#pygame.mixer.music.load(sound_path)
 
 # Set up the display
 WIDTH, HEIGHT = 1000, 820
@@ -22,6 +27,11 @@ MARGIN = 40
 PANEL_X = MARGIN + BOARD_SIZE + 30
 CLOSE_BUTTON_RECT = pygame.Rect(PANEL_X + 118, MARGIN + 14, 28, 28)
 RESTART_BUTTON_RECT = pygame.Rect(PANEL_X + 18, MARGIN + 655, 124, 42)
+PVP_BUTTON_RECT = pygame.Rect(PANEL_X + 18, MARGIN + 365, 56, 30)
+AI_BUTTON_RECT = pygame.Rect(PANEL_X + 84, MARGIN + 365, 58, 30)
+EASY_BUTTON_RECT = pygame.Rect(PANEL_X + 18, MARGIN + 430, 42, 30)
+MEDIUM_BUTTON_RECT = pygame.Rect(PANEL_X + 64, MARGIN + 430, 48, 30)
+HARD_BUTTON_RECT = pygame.Rect(PANEL_X + 116, MARGIN + 430, 42, 30)
 # Set the title of the window
 pygame.display.set_caption("Quoridor")
 
@@ -58,6 +68,9 @@ status_message = "P1 turn"
 status_color = TEXT_COLOR
 game_over = False
 winner = None
+game_mode = "PVP"
+ai_level = "Medium"
+AI_PLAYER = "P2"
 
 running = True
 
@@ -107,6 +120,86 @@ def draw_text(text, font, color, x, y):
     screen.blit(surface, (x, y))
 
 
+def is_ai_turn():
+    return game_mode == "HVA" and current_player == AI_PLAYER and not game_over
+
+
+def next_turn_message():
+    if is_ai_turn():
+        return "AI thinking..."
+
+    return current_player + " turn"
+
+
+def switch_turn():
+    global current_player, selected_wall_orientation, status_message, status_color
+
+    current_player = "P2" if current_player == "P1" else "P1"
+    selected_wall_orientation = None
+    status_message = next_turn_message()
+    status_color = TEXT_COLOR
+
+
+def apply_win(player):
+    global selected_wall_orientation, status_message, status_color, game_over, winner
+
+    print(player, "wins!")
+    status_message = player + " wins!"
+    status_color = TEXT_COLOR
+    selected_wall_orientation = None
+    winner = player
+    game_over = True
+    #pygame.mixer.music.play(start=30)
+
+
+def perform_ai_turn():
+    global status_message, status_color
+
+    if not is_ai_turn():
+        return
+
+    action = choose_ai_action(board, walls, player_walls, players, AI_PLAYER, ai_level)
+
+    if action is None:
+        status_message = "AI has no move"
+        status_color = ERROR_COLOR
+        return
+
+    action_done = False
+
+    if action["type"] == "move":
+        x = players[AI_PLAYER]["x"]
+        y = players[AI_PLAYER]["y"]
+        moved, new_x, new_y = move_player(board, walls, x, y, action["direction"], AI_PLAYER)
+
+        if moved:
+            players[AI_PLAYER]["x"] = new_x
+            players[AI_PLAYER]["y"] = new_y
+            action_done = True
+
+    elif action["type"] == "wall":
+        action_done = place_wall(
+            board,
+            walls,
+            player_walls,
+            players,
+            AI_PLAYER,
+            action["x"],
+            action["y"],
+            action["orientation"],
+        )
+
+    if not action_done:
+        status_message = "AI move failed"
+        status_color = ERROR_COLOR
+        return
+
+    if check_winner(AI_PLAYER, players[AI_PLAYER]["y"]):
+        apply_win(AI_PLAYER)
+    else:
+        switch_turn()
+
+
 def reset_game():
     global current_player, selected_wall_orientation, status_message, status_color, game_over, winner
 
@@ -132,6 +225,19 @@ def reset_game():
     status_color = TEXT_COLOR
     game_over = False
     winner = None
+
+
+def draw_small_button(rect, label, active):
+    mouse_pos = pygame.mouse.get_pos()
+    color = BUTTON_HOVER_COLOR if rect.collidepoint(mouse_pos) else BUTTON_COLOR
+
+    if active:
+        color = P2_COLOR
+
+    pygame.draw.rect(screen, color, rect, border_radius=6)
+    label_surface = SMALL_FONT.render(label, True, TEXT_COLOR)
+    label_rect = label_surface.get_rect(center=rect.center)
+    screen.blit(label_surface, label_rect)
 
 
 def draw_win_celebration():
@@ -196,14 +302,23 @@ def draw_panel():
         mode_text = "None"
     draw_text(mode_text, HUD_FONT, TEXT_COLOR, PANEL_X + 18, MARGIN + 325)
 
-    draw_text("Controls", SMALL_FONT, MUTED_TEXT_COLOR, PANEL_X + 18, MARGIN + 395)
-    draw_text("Arrows: move", SMALL_FONT, TEXT_COLOR, PANEL_X + 18, MARGIN + 425)
-    draw_text("H: horizontal", SMALL_FONT, TEXT_COLOR, PANEL_X + 18, MARGIN + 455)
-    draw_text("V: vertical", SMALL_FONT, TEXT_COLOR, PANEL_X + 18, MARGIN + 485)
-    draw_text("Click: place", SMALL_FONT, TEXT_COLOR, PANEL_X + 18, MARGIN + 515)
+    draw_text("Game mode", SMALL_FONT, MUTED_TEXT_COLOR, PANEL_X + 18, MARGIN + 345)
+    draw_small_button(PVP_BUTTON_RECT, "PvP", game_mode == "PVP")
+    draw_small_button(AI_BUTTON_RECT, "AI", game_mode == "HVA")
 
-    draw_text("Status", SMALL_FONT, MUTED_TEXT_COLOR, PANEL_X + 18, MARGIN + 585)
-    draw_text(status_message, SMALL_FONT, status_color, PANEL_X + 18, MARGIN + 615)
+    draw_text("AI level", SMALL_FONT, MUTED_TEXT_COLOR, PANEL_X + 18, MARGIN + 410)
+    draw_small_button(EASY_BUTTON_RECT, "Easy", ai_level == "Easy")
+    draw_small_button(MEDIUM_BUTTON_RECT, "Med", ai_level == "Medium")
+    draw_small_button(HARD_BUTTON_RECT, "Hard", ai_level == "Hard")
+
+    draw_text("Controls", SMALL_FONT, MUTED_TEXT_COLOR, PANEL_X + 18, MARGIN + 485)
+    draw_text("Arrows: move", SMALL_FONT, TEXT_COLOR, PANEL_X + 18, MARGIN + 515)
+    draw_text("H: horizontal", SMALL_FONT, TEXT_COLOR, PANEL_X + 18, MARGIN + 545)
+    draw_text("V: vertical", SMALL_FONT, TEXT_COLOR, PANEL_X + 18, MARGIN + 575)
+    draw_text("Click: place", SMALL_FONT, TEXT_COLOR, PANEL_X + 18, MARGIN + 605)
+
+    draw_text("Status", SMALL_FONT, MUTED_TEXT_COLOR, PANEL_X + 18, MARGIN + 620)
+    draw_text(status_message, SMALL_FONT, status_color, PANEL_X + 18, MARGIN + 640)
 
     restart_color = BUTTON_HOVER_COLOR if RESTART_BUTTON_RECT.collidepoint(pygame.mouse.get_pos()) else BUTTON_COLOR
     pygame.draw.rect(screen, restart_color, RESTART_BUTTON_RECT, border_radius=8)
@@ -224,7 +339,7 @@ while running:
             direction = None
 
             #Map arrow keys to movement direction
-            if not game_over:
+            if not game_over and not is_ai_turn():
                 if event.key == pygame.K_UP: 
                     direction = "UP"
                 elif event.key == pygame.K_DOWN:
@@ -257,19 +372,10 @@ while running:
                     players[current_player]["y"] = new_y
 
                     if check_winner(current_player, players[current_player]["y"]): # Check if the current player has won after the move
-                        print(current_player, "wins!"  )
-                        status_message = current_player + " wins!"
-                        status_color = TEXT_COLOR
-                        selected_wall_orientation = None
-                        winner = current_player
-                        game_over = True
-                        pygame.mixer.music.play(start=30)
+                        apply_win(current_player)
 
                     else:
-                        current_player = "P2" if current_player == "P1" else "P1"
-                        selected_wall_orientation = None
-                        status_message = current_player + " turn"
-                        status_color = TEXT_COLOR
+                        switch_turn()
                 else:
                     status_message = "Invalid move"
                     status_color = ERROR_COLOR
@@ -280,7 +386,27 @@ while running:
             elif RESTART_BUTTON_RECT.collidepoint(event.pos):
                 reset_game()
                 pygame.mixer.music.stop()
-            elif selected_wall_orientation is not None and not game_over:
+            elif PVP_BUTTON_RECT.collidepoint(event.pos):
+                game_mode = "PVP"
+                reset_game()
+                pygame.mixer.music.stop()
+            elif AI_BUTTON_RECT.collidepoint(event.pos):
+                game_mode = "HVA"
+                reset_game()
+                pygame.mixer.music.stop()
+            elif EASY_BUTTON_RECT.collidepoint(event.pos):
+                ai_level = "Easy"
+                reset_game()
+                pygame.mixer.music.stop()
+            elif MEDIUM_BUTTON_RECT.collidepoint(event.pos):
+                ai_level = "Medium"
+                reset_game()
+                pygame.mixer.music.stop()
+            elif HARD_BUTTON_RECT.collidepoint(event.pos):
+                ai_level = "Hard"
+                reset_game()
+                pygame.mixer.music.stop()
+            elif selected_wall_orientation is not None and not game_over and not is_ai_turn():
                 wall_position = get_wall_position(event.pos[0], event.pos[1], selected_wall_orientation)
 
                 if wall_position is not None:
@@ -288,16 +414,15 @@ while running:
                     placed = place_wall(board, walls, player_walls, players, current_player, x, y, selected_wall_orientation)
 
                     if placed:
-                        selected_wall_orientation = None
-                        current_player = "P2" if current_player == "P1" else "P1"
-                        status_message = current_player + " turn"
-                        status_color = TEXT_COLOR
+                        switch_turn()
                     else:
                         status_message = "Invalid wall"
                         status_color = ERROR_COLOR
                 else:
                     status_message = "Click between cells"
                     status_color = ERROR_COLOR
+
+    perform_ai_turn()
 
 
     # Draw the board and players
