@@ -102,17 +102,11 @@ while running:
                 y = players[current_player]["y"]
 
                 # Attempt to move the player and update the board and player position if successful
-                moved = move_player(board, walls, x, y, direction, current_player)
+                moved, new_x, new_y = move_player(board, walls, x, y, direction, current_player)
 
                 if moved:
-                    if direction == "UP":
-                        players[current_player]["y"] -= 1 # Update the player's position in the players dictionary
-                    elif direction == "DOWN":
-                        players[current_player]["y"] += 1 # Update the player's position in the players dictionary
-                    elif direction == "LEFT":
-                        players[current_player]["x"] -= 1 # Update the player's position in the players dictionary
-                    elif direction == "RIGHT":
-                        players[current_player]["x"] += 1 # Update the player's position in the players dictionary
+                    players[current_player]["x"] = new_x
+                    players[current_player]["y"] = new_y
 
                     if check_winner(current_player, players[current_player]["y"]): # Check if the current player has won after the move
                         print(current_player, "wins!"  )
@@ -131,6 +125,7 @@ while running:
                     if placed:
                         selected_wall_orientation = None
                         current_player = "P2" if current_player == "P1" else "P1"
+
 
     # Draw the board and players
     for y in range(9):
