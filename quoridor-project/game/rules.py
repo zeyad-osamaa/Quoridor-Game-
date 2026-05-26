@@ -102,7 +102,7 @@ def check_winner(player, y):
     return False
 
 # Function to place a wall on the board
-def place_wall(walls, player_walls, player, x, y, orientation):
+def place_wall(board, walls, player_walls, players, player, x, y, orientation):
 
     if player_walls[player] <= 0: # Check if the player has any walls left to place
         return False
@@ -117,7 +117,23 @@ def place_wall(walls, player_walls, player, x, y, orientation):
         if wall.x == x and wall.y == y:
             return False
 
-    walls.append(Wall(x, y, orientation))
+        if orientation == "H" and wall.orientation == "H":
+            if wall.y == y and abs(wall.x - x) == 1:
+                return False
+
+        if orientation == "V" and wall.orientation == "V":
+            if wall.x == x and abs(wall.y - y) == 1:
+                return False
+            
+
+    new_wall = Wall(x, y, orientation)
+    walls.append(new_wall)
+    p1_has_path = has_path_to_goal(board,walls, players["P1"]["x"], players["P1"]["y"], "P1")
+    p2_has_path = has_path_to_goal(board,walls, players["P2"]["x"], players["P2"]["y"], "P2")
+    if not p1_has_path or not p2_has_path:
+        walls.remove(new_wall)
+        return False
+    
     player_walls[player] -= 1
 
     return True
@@ -148,3 +164,38 @@ def is_blocked(walls, x, y, direction):
 
     return False
 
+def has_path_to_goal(board, walls, start_x, start_y, player) :
+    visited = set()
+    visited.add((start_x, start_y))
+    queue = [(start_x, start_y)]
+
+    while queue:
+        current_x, current_y = queue.pop(0)
+        if (player == "P1" and current_y == 8) or (player == "P2" and current_y == 0):
+            return True
+        
+        new_x = current_x
+        new_y = current_y - 1
+        if is_inside_board(new_x, new_y) and not is_blocked(walls, current_x, current_y, "UP") and (new_x, new_y) not in visited:
+            visited.add((new_x, new_y))
+            queue.append((new_x, new_y))
+        
+        new_x = current_x
+        new_y = current_y + 1
+        if is_inside_board(new_x, new_y) and not is_blocked(walls, current_x, current_y, "DOWN") and (new_x, new_y) not in visited:
+            visited.add((new_x, new_y))
+            queue.append((new_x, new_y))
+
+        new_x = current_x - 1
+        new_y = current_y 
+        if is_inside_board(new_x, new_y) and not is_blocked(walls, current_x, current_y, "LEFT") and (new_x, new_y) not in visited:
+            visited.add((new_x, new_y))
+            queue.append((new_x, new_y))
+
+        new_x = current_x + 1
+        new_y = current_y
+        if is_inside_board(new_x, new_y) and not is_blocked(walls, current_x, current_y, "RIGHT") and (new_x, new_y) not in visited:
+            visited.add((new_x, new_y))
+            queue.append((new_x, new_y))
+
+    return False
